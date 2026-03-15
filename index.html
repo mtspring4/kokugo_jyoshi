@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ことばをつなぐことば</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Zen Maru Gothic', sans-serif;
+            background-color: #fff9eb;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .screen {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            transition: opacity 0.3s;
+        }
+        .hidden { display: none !important; }
+
+        .stage-area {
+            height: 140px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 3.5rem;
+            position: relative;
+        }
+        .drop-zone {
+            display: inline-flex;
+            width: 3.5rem;
+            height: 3.5rem;
+            border: 3px dashed #fca5a5;
+            border-radius: 0.8rem;
+            margin: 0 4px;
+            vertical-align: middle;
+            justify-content: center;
+            align-items: center;
+            background-color: #fff1f2;
+            transition: all 0.2s;
+        }
+        .drop-zone.active {
+            border-color: #ef4444;
+            background-color: #fee2e2;
+            transform: scale(1.1);
+        }
+        .draggable-particle {
+            width: 3.8rem;
+            height: 3.8rem;
+            background-color: #fb923c;
+            color: white;
+            border-radius: 0.8rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            font-weight: bold;
+            cursor: grab;
+            box-shadow: 0 5px 0 #ea580c;
+            position: relative;
+            z-index: 10;
+            touch-action: none;
+        }
+        .dragging-source { visibility: hidden !important; }
+
+        #guide-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            pointer-events: none;
+        }
+        .hand-move-up {
+            font-size: 4rem;
+            animation: moveUpHalf 2.5s infinite;
+        }
+        @keyframes moveUpHalf {
+            0% { transform: translateY(160px); opacity: 0; }
+            20% { opacity: 1; }
+            70% { transform: translateY(60px); opacity: 1; }
+            100% { transform: translateY(60px); opacity: 0; }
+        }
+
+        .character { display: inline-block; transform-origin: center; }
+        .flip-h { transform: scaleX(-1); }
+
+        /* 通常時（右向き）のアニメーション */
+        .eat-anim { animation: eat 0.4s infinite; }
+        @keyframes eat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2) translateX(15px); } }
+        
+        .dash-anim { animation: dash 1s forwards; }
+        @keyframes dash { 0% { transform: translateX(0); } 100% { transform: translateX(180px); opacity: 0; } }
+        
+        .go-anim { animation: go 1.2s forwards; }
+        @keyframes go { 0% { transform: translateX(0); } 100% { transform: translateX(60px); } }
+        
+        .bounce { animation: bounce 0.5s ease infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+
+        /* 反転時（scaleX(-1)）のアニメーション：translateXの符号を逆転させて右に進ませる */
+        .eat-anim-flipped { animation: eat-flipped 0.4s infinite; }
+        @keyframes eat-flipped { 0%, 100% { transform: scaleX(-1) scale(1); } 50% { transform: scaleX(-1) scale(1.2) translateX(-15px); } }
+
+        .dash-anim-flipped { animation: dash-flipped 1s forwards; }
+        @keyframes dash-flipped { 0% { transform: scaleX(-1) translateX(0); } 100% { transform: scaleX(-1) translateX(-180px); opacity: 0; } }
+
+        .go-anim-flipped { animation: go-flipped 1.2s forwards; }
+        @keyframes go-flipped { 0% { transform: scaleX(-1) translateX(0); } 100% { transform: scaleX(-1) translateX(-60px); } }
+
+        .bounce-flipped { animation: bounce-flipped 0.5s ease infinite; }
+        @keyframes bounce-flipped { 0%, 100% { transform: scaleX(-1) translateY(0); } 50% { transform: scaleX(-1) translateY(-15px); } }
+
+        .shake { animation: shake 0.4s ease-in-out; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
+
+        .btn-primary {
+            background-color: #fb923c;
+            color: white;
+            padding: 1.2rem 3rem;
+            border-radius: 9999px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            box-shadow: 0 6px 0 #ea580c;
+            transition: all 0.1s;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center min-h-screen">
+
+    <div id="start-screen" class="screen bg-orange-50 z-50">
+        <div class="text-center">
+            <div class="text-7xl mb-6">🐶🦴</div>
+            <h1 class="text-4xl font-bold text-orange-600 mb-12">正しく つなごう！</h1>
+            <p class="text-gray-500 mb-6 font-bold">10もん ちょうせん！</p>
+            <button id="start-btn" class="btn-primary">あそぶ</button>
+        </div>
+    </div>
+
+    <div id="game-screen" class="screen hidden">
+        <div id="guide-overlay"><div class="hand-move-up">👆</div></div>
+        <div id="game-card" class="bg-white rounded-[2rem] shadow-xl w-full max-w-md p-5 border-[6px] border-orange-200 relative">
+            <div class="absolute top-0 left-0 w-full h-2 bg-gray-100 overflow-hidden rounded-t-full">
+                <div id="progress" class="h-full bg-orange-400 transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <div id="stage" class="stage-area bg-gradient-to-b from-blue-50 to-green-50 rounded-2xl mb-4 mt-2">
+                <div id="char-1" class="character"></div>
+                <div id="item-1" class="character ml-6"></div>
+            </div>
+            <div id="sentence-container" class="text-center text-xl sm:text-2xl font-bold mb-6 min-h-[5rem] flex items-center justify-center flex-wrap gap-1"></div>
+            <div id="particles-container" class="flex justify-center gap-3 items-center h-20"></div>
+            <div id="message-box" class="mt-2 text-center h-6 text-base font-bold"></div>
+        </div>
+        <div class="mt-4 text-lg font-bold text-gray-600"><span id="current-count">1</span> / 10</div>
+    </div>
+
+    <div id="clear-screen" class="screen bg-white/95 hidden z-50">
+        <div class="text-8xl mb-4">🏆✨</div>
+        <h2 class="text-4xl font-bold text-orange-500 mb-2">ぜんもん せいかい！</h2>
+        <p class="text-xl text-gray-600 mb-8 font-bold">はかせに なったね！</p>
+        <button id="restart-btn" class="btn-primary">もういちど</button>
+    </div>
+
+    <script>
+        const pairMap = { "を": "お", "は": "わ", "へ": "え", "が": "で", "に": "も" };
+        const totalQuestionsPerGame = 10;
+
+        const allQuestions = [
+            { parts: ["いぬ", {ans: "を"}, "あらう"], icons: ["🐕", "🧼"], act: "eat" },
+            { parts: ["りんご", {ans: "を"}, "たべる"], icons: ["🐰", "🍎"], act: "eat" },
+            { parts: ["おかし", {ans: "を"}, "たべる"], icons: ["🐻", "🍪"], act: "eat" },
+            { parts: ["じゅーす", {ans: "を"}, "のむ"], icons: ["🐘", "🍹"], act: "eat" },
+            { parts: ["みず", {ans: "を"}, "のむ"], icons: ["🦒", "💧"], act: "eat" },
+            { parts: ["ほん", {ans: "を"}, "よむ"], icons: ["🐵", "📖"], act: "eat" },
+            { parts: ["て", {ans: "を"}, "あらう"], icons: ["🐾", "🧼"], act: "eat" },
+            { parts: ["え", {ans: "を"}, "かく"], icons: ["🐙", "🖌️"], act: "eat" },
+            { parts: ["しゃしん", {ans: "を"}, "とる"], icons: ["🤖", "📸"], act: "eat" },
+            { parts: ["くつ", {ans: "を"}, "はく"], icons: ["🐸", "👟"], act: "eat" },
+            { parts: ["ふく", {ans: "を"}, "きる"], icons: ["🐼", "👕"], act: "eat" },
+            { parts: ["ぼうし", {ans: "を"}, "かぶる"], icons: ["🐱", "🧢"], act: "eat" },
+            { parts: ["ドア", {ans: "を"}, "あける"], icons: ["🦁", "🚪"], act: "eat" },
+            { parts: ["まど", {ans: "を"}, "しめる"], icons: ["🦊", "🪟"], act: "eat" },
+            { parts: ["でんき", {ans: "を"}, "つける"], icons: ["🤖", "💡"], act: "bounce" },
+            { parts: ["かばん", {ans: "を"}, "もつ"], icons: ["🐨", "🎒"], act: "bounce" },
+            { parts: ["さら", {ans: "を"}, "あらう"], icons: ["🦝", "🍽️"], act: "eat" },
+            { parts: ["おもちゃ", {ans: "を"}, "だす"], icons: ["🐹", "🧸"], act: "eat" },
+            { parts: ["なまえ", {ans: "を"}, "かく"], icons: ["🐙", "✏️"], act: "eat" },
+            { parts: ["かさ", {ans: "を"}, "さす"], icons: ["🐸", "☂️"], act: "bounce" },
+            { parts: ["てがみ", {ans: "を"}, "だす"], icons: ["🐿️", "📮"], act: "go" },
+            { parts: ["あし", {ans: "を"}, "あらう"], icons: ["🐕", "🐾"], act: "eat" },
+            { parts: ["かお", {ans: "を"}, "あらう"], icons: ["🐱", "💦"], act: "eat" },
+            { parts: ["は", {ans: "を"}, "みがく"], icons: ["🐊", "🪥"], act: "eat" },
+            { parts: ["おと", {ans: "を"}, "きく"], icons: ["🐰", "🎵"], act: "bounce" },
+            { parts: ["ぞう", {ans: "は"}, "おおきい"], icons: ["🐘", "🏔️"], act: "bounce" },
+            { parts: ["あり", {ans: "は"}, "ちいさい"], icons: ["🐜", "🔍"], act: "bounce" },
+            { parts: ["うさぎ", {ans: "は"}, "はやい"], icons: ["🐰", "💨"], act: "dash" },
+            { parts: ["かめ", {ans: "は"}, "おそい"], icons: ["🐢", "⏳"], act: "bounce" },
+            { parts: ["きりん", {ans: "は"}, "ながい"], icons: ["🦒", "📏"], act: "bounce" },
+            { parts: ["らいおん", {ans: "は"}, "つよい"], icons: ["🦁", "💪"], act: "bounce" },
+            { parts: ["りんご", {ans: "は"}, "あかい"], icons: ["🍎", "❤️"], act: "bounce" },
+            { parts: ["ばなな", {ans: "は"}, "きいろい"], icons: ["🍌", "💛"], act: "bounce" },
+            { parts: ["うみ", {ans: "は"}, "あおい"], icons: ["🌊", "💙"], act: "bounce" },
+            { parts: ["たいよう", {ans: "は"}, "あかるい"], icons: ["☀️", "🌅"], act: "bounce" },
+            { parts: ["よる", {ans: "は"}, "くらい"], icons: ["🌃", "🌑"], act: "bounce" },
+            { parts: ["ねこ", {ans: "は"}, "ねる"], icons: ["🐱", "💤"], act: "bounce" },
+            { parts: ["ことり", {ans: "は"}, "うたう"], icons: ["🐦", "🎵"], act: "bounce" },
+            { parts: ["さかな", {ans: "は"}, "およぐ"], icons: ["🐟", "🌊"], act: "dash" },
+            { parts: ["くるま", {ans: "は"}, "はやい"], icons: ["🚗", "💨"], act: "dash" },
+            { parts: ["ロボット", {ans: "は"}, "げんき"], icons: ["🤖", "🔋"], act: "bounce" },
+            { parts: ["おばけ", {ans: "は"}, "しろい"], icons: ["👻", "⚪"], act: "bounce" },
+            { parts: ["ひこうき", {ans: "は"}, "たかい"], icons: ["✈️", "☁️"], act: "dash" },
+            { parts: ["ゆき", {ans: "は"}, "つめたい"], icons: ["❄️", "🧊"], act: "bounce" },
+            { parts: ["でんしゃ", {ans: "は"}, "ながい"], icons: ["🚃", "📏"], act: "dash" },
+            { parts: ["わに", {ans: "は"}, "こわい"], icons: ["🐊", "😱"], act: "bounce" },
+            { parts: ["ちょうちょ", {ans: "は"}, "きれい"], icons: ["🦋", "🌸"], act: "bounce" },
+            { parts: ["かえる", {ans: "は"}, "わらう"], icons: ["🐸", "😄"], act: "bounce" },
+            { parts: ["きょう", {ans: "は"}, "はれ"], icons: ["📅", "☀️"], act: "bounce" },
+            { parts: ["つき", {ans: "は"}, "きいろい"], icons: ["🌙", "💛"], act: "bounce" },
+            { parts: ["がっこう", {ans: "へ"}, "いく"], icons: ["🎒", "🏫"], act: "go" },
+            { parts: ["おうち", {ans: "へ"}, "かえる"], icons: ["🐿️", "🏠"], act: "go" },
+            { parts: ["こうえん", {ans: "へ"}, "いく"], icons: ["🐕", "🛝"], act: "go" },
+            { parts: ["うみ", {ans: "へ"}, "いく"], icons: ["🦀", "🏖️"], act: "go" },
+            { parts: ["やま", {ans: "へ"}, "いく"], icons: ["🐻", "⛰️"], act: "go" },
+            { parts: ["トイレ", {ans: "へ"}, "いく"], icons: ["🐭", "🚻"], act: "go" },
+            { parts: ["そら", {ans: "へ"}, "とぶ"], icons: ["🐦", "☁️"], act: "dash" },
+            { parts: ["おみせ", {ans: "へ"}, "いく"], icons: ["🐨", "🏪"], act: "go" },
+            { parts: ["としょかん", {ans: "へ"}, "いく"], icons: ["🦉", "📚"], act: "go" },
+            { parts: ["まえ", {ans: "へ"}, "すすむ"], icons: ["🏃", "🏁"], act: "dash" },
+            { parts: ["うえ", {ans: "へ"}, "のぼる"], icons: ["🐒", "🌳"], act: "bounce" },
+            { parts: ["した", {ans: "へ"}, "おりる"], icons: ["🐱", "⬇️"], act: "bounce" },
+            { parts: ["みぎ", {ans: "へ"}, "まがる"], icons: ["🚲", "↪️"], act: "dash" },
+            { parts: ["ひだり", {ans: "へ"}, "まがる"], icons: ["🚲", "↩️"], act: "dash" },
+            { parts: ["おふろ", {ans: "へ"}, "はいる"], icons: ["🐤", "🛀"], act: "bounce" },
+            { parts: ["ベッド", {ans: "へ"}, "いく"], icons: ["🐱", "🛌"], act: "go" },
+            { parts: ["えき", {ans: "へ"}, "いく"], icons: ["🤖", "🚉"], act: "go" },
+            { parts: ["にわ", {ans: "へ"}, "でる"], icons: ["🐶", "🏡"], act: "go" },
+            { parts: ["とおく", {ans: "へ"}, "いく"], icons: ["✈️", "🗾"], act: "dash" },
+            { parts: ["ゆうえんち", {ans: "へ"}, "いく"], icons: ["🐼", "🎡"], act: "go" },
+            { parts: ["まち", {ans: "へ"}, "おでかけ"], icons: ["🦊", "🏢"], act: "go" },
+            { parts: ["そら", {ans: "へ"}, "とびだす"], icons: ["🚀", "⭐"], act: "dash" },
+            { parts: ["ねこ", {ans: "は"}, "さかな", {ans: "を"}, "たべる"], icons: ["🐱", "🐟"], act: "eat" },
+            { parts: ["うさぎ", {ans: "は"}, "やま", {ans: "へ"}, "いく"], icons: ["🐰", "⛰️"], act: "go" },
+            { parts: ["いぬ", {ans: "は"}, "こうえん", {ans: "へ"}, "いく"], icons: ["🐶", "🛝"], act: "go" },
+            { parts: ["あらいぐま", {ans: "は"}, "さら", {ans: "を"}, "あらう"], icons: ["🦝", "🍽️"], act: "eat" },
+            { parts: ["とり", {ans: "は"}, "そら", {ans: "へ"}, "とぶ"], icons: ["🐦", "☁️"], act: "dash" },
+            { parts: ["ぱんだ", {ans: "は"}, "ささ", {ans: "を"}, "たべる"], icons: ["🐼", "🌿"], act: "eat" },
+            { parts: ["きつね", {ans: "は"}, "おみせ", {ans: "へ"}, "いく"], icons: ["🦊", "🏪"], act: "go" },
+            { parts: ["さる", {ans: "は"}, "ばなな", {ans: "を"}, "たべる"], icons: ["🐒", "🍌"], act: "eat" },
+            { parts: ["くま", {ans: "は"}, "もり", {ans: "へ"}, "かえる"], icons: ["🐻", "🌲"], act: "go" },
+            { parts: ["ろぼっと", {ans: "は"}, "おうち", {ans: "へ"}, "かえる"], icons: ["🤖", "🏠"], act: "go" }
+          { parts: ["ねこ", {ans: "は"}, "みず", {ans: "を"}, "のむ"], icons: ["🐱", "💧"], act: "eat" },
+          { parts: ["いぬ", {ans: "は"}, "ボール", {ans: "を"}, "とる"], icons: ["🐶", "⚽"], act: "bounce" },
+          { parts: ["さる", {ans: "は"}, "き", {ans: "へ"}, "のぼる"], icons: ["🐒", "🌳"], act: "bounce" },
+          { parts: ["とり", {ans: "は"}, "み", {ans: "を"}, "たべる"], icons: ["🐦", "🍒"], act: "eat" },
+          { parts: ["うさぎ", {ans: "は"}, "にんじん", {ans: "を"}, "たべる"], icons: ["🐰", "🥕"], act: "eat" },
+          { parts: ["ぞう", {ans: "は"}, "みず", {ans: "を"}, "あびる"], icons: ["🐘", "💦"], act: "bounce" },
+          { parts: ["きつね", {ans: "は"}, "もり", {ans: "へ"}, "いく"], icons: ["🦊", "🌲"], act: "go" },
+          { parts: ["くま", {ans: "は"}, "さかな", {ans: "を"}, "とる"], icons: ["🐻", "🐟"], act: "eat" },
+          { parts: ["かえる", {ans: "は"}, "みず", {ans: "へ"}, "とびこむ"], icons: ["🐸", "💧"], act: "dash" },
+          { parts: ["ひよこ", {ans: "は"}, "えさ", {ans: "を"}, "たべる"], icons: ["🐥", "🌾"], act: "eat" },
+          { parts: ["ろぼっと", {ans: "は"}, "でんき", {ans: "を"}, "つかう"], icons: ["🤖", "🔋"], act: "bounce" },
+          { parts: ["こども", {ans: "は"}, "こうえん", {ans: "へ"}, "いく"], icons: ["🧒", "🛝"], act: "go" },
+          { parts: ["せんせい", {ans: "は"}, "ほん", {ans: "を"}, "よむ"], icons: ["👩‍🏫", "📖"], act: "eat" },
+          { parts: ["バス", {ans: "は"}, "えき", {ans: "へ"}, "いく"], icons: ["🚌", "🚉"], act: "go" },
+          { parts: ["でんしゃ", {ans: "は"}, "まち", {ans: "へ"}, "いく"], icons: ["🚃", "🏙️"], act: "go" },
+          { parts: ["こども", {ans: "が"}, "ボール", {ans: "を"}, "なげる"], icons: ["🧒", "⚽"], act: "dash" },
+          { parts: ["とり", {ans: "が"}, "そら", {ans: "に"}, "とぶ"], icons: ["🐦", "☁️"], act: "dash" },
+          { parts: ["かえる", {ans: "が"}, "いけ", {ans: "に"}, "とびこむ"], icons: ["🐸", "🌊"], act: "dash" },
+          { parts: ["さかな", {ans: "が"}, "うみ", {ans: "を"}, "およぐ"], icons: ["🐟", "💧"], act: "dash" }
+        ];
+
+        const flipList = ["🐕", "🐰", "🐻", "🐘", "🦒", "🐵", "🐙", "🐸", "🐼", "🐱", "🦁", "🦊", "🐨", "🦝", "🐹", "🐿️", "🐊", "🐜", "🐢", "🐦", "🐟", "🦖", "🦕", "🏃", "🚶", "🚲", "🚗", "🚃", "🚆", "✈️", "🚀", "🐒", "🐆", "🐄", "🐎", "🐀", "🐤"];
+
+        let gameQuestions = [];
+        let currentIdx = 0;
+        let isProcessing = false;
+        let activeDraggable = null;
+        let sourceElement = null;
+        let startPos = { x: 0, y: 0 };
+        let hintTimer = null;
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('clear-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            gameQuestions = [...allQuestions].sort(() => Math.random() - 0.5).slice(0, totalQuestionsPerGame);
+            currentIdx = 0;
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            const q = gameQuestions[currentIdx];
+            isProcessing = false;
+            document.getElementById('message-box').textContent = "";
+            document.getElementById('current-count').textContent = currentIdx + 1;
+            document.getElementById('progress').style.width = `${(currentIdx / totalQuestionsPerGame) * 100}%`;
+            
+            const c1 = document.getElementById('char-1');
+            const i1 = document.getElementById('item-1');
+            c1.textContent = q.icons[0];
+            i1.textContent = q.icons[1];
+            
+            c1.className = "character pop-in";
+            i1.className = "character ml-6 pop-in";
+            if (flipList.includes(q.icons[0])) c1.classList.add('flip-h');
+
+            const container = document.getElementById('sentence-container');
+            container.innerHTML = "";
+            let blanks = [];
+            q.parts.forEach(p => {
+                if (typeof p === 'string') {
+                    const span = document.createElement('span');
+                    span.textContent = p;
+                    container.appendChild(span);
+                } else {
+                    const zone = document.createElement('div');
+                    zone.className = "drop-zone";
+                    zone.dataset.ans = p.ans;
+                    container.appendChild(zone);
+                    blanks.push(p.ans);
+                }
+            });
+
+            let choices = [];
+            if (blanks.length === 1) {
+                choices = [blanks[0], pairMap[blanks[0]]];
+            } else {
+                choices = Array.from(new Set(blanks));
+                blanks.forEach(b => {
+                    const p = pairMap[b];
+                    if (choices.length < 4 && !choices.includes(p)) choices.push(p);
+                });
+                while(choices.length < 3) {
+                    const other = ["を", "は", "へ"].find(x => !choices.includes(x));
+                    choices.push(other);
+                }
+            }
+            choices = choices.sort(() => Math.random() - 0.5);
+
+            const pContainer = document.getElementById('particles-container');
+            pContainer.innerHTML = "";
+            choices.forEach(opt => {
+                const el = document.createElement('div');
+                el.textContent = opt;
+                el.className = "draggable-particle";
+                el.addEventListener('touchstart', (e) => handleStart(e.touches[0].clientX, e.touches[0].clientY, el));
+                el.addEventListener('mousedown', (e) => handleStart(e.clientX, e.clientY, el));
+                pContainer.appendChild(el);
+            });
+            resetHintTimer();
+        }
+
+        function resetHintTimer() {
+            clearTimeout(hintTimer);
+            document.getElementById('guide-overlay').style.display = 'none';
+            hintTimer = setTimeout(() => {
+                if (!isProcessing) document.getElementById('guide-overlay').style.display = 'flex';
+            }, 4000);
+        }
+
+        function handleStart(x, y, el) {
+            if (isProcessing) return;
+            resetHintTimer();
+            sourceElement = el;
+            sourceElement.classList.add('dragging-source');
+            activeDraggable = el.cloneNode(true);
+            activeDraggable.classList.remove('dragging-source');
+            activeDraggable.style.position = 'fixed';
+            activeDraggable.style.zIndex = '100';
+            activeDraggable.style.pointerEvents = 'none';
+            document.body.appendChild(activeDraggable);
+            const rect = el.getBoundingClientRect();
+            startPos = { x: x - rect.left, y: y - rect.top };
+            updatePos(x, y);
+
+            const moveHandler = (e) => {
+                const mx = (e.type === 'touchmove') ? e.touches[0].clientX : e.clientX;
+                const my = (e.type === 'touchmove') ? e.touches[0].clientY : e.clientY;
+                updatePos(mx, my);
+                checkZoneHighlight(mx, my);
+            };
+
+            const endHandler = (e) => {
+                const ex = (e.type === 'touchend') ? e.changedTouches[0].clientX : e.clientX;
+                const ey = (e.type === 'touchend') ? e.changedTouches[0].clientY : e.clientY;
+                window.removeEventListener('mousemove', moveHandler);
+                window.removeEventListener('mouseup', endHandler);
+                window.removeEventListener('touchmove', moveHandler);
+                window.removeEventListener('touchend', endHandler);
+                finalizeDrop(ex, ey);
+            };
+
+            window.addEventListener('mousemove', moveHandler);
+            window.addEventListener('mouseup', endHandler);
+            window.addEventListener('touchmove', moveHandler, { passive: false });
+            window.addEventListener('touchend', endHandler);
+        }
+
+        function updatePos(x, y) {
+            if (!activeDraggable) return;
+            activeDraggable.style.left = `${x - startPos.x}px`;
+            activeDraggable.style.top = `${y - startPos.y}px`;
+        }
+
+        function checkZoneHighlight(x, y) {
+            document.querySelectorAll('.drop-zone').forEach(zone => {
+                if (zone.children.length > 0) return;
+                const r = zone.getBoundingClientRect();
+                if (x > r.left && x < r.right && y > r.top && y < r.bottom) zone.classList.add('active');
+                else zone.classList.remove('active');
+            });
+        }
+
+        function finalizeDrop(x, y) {
+            let success = false;
+            let targetZone = null;
+            document.querySelectorAll('.drop-zone').forEach(zone => {
+                if (zone.children.length > 0) return;
+                const r = zone.getBoundingClientRect();
+                if (x > r.left && x < r.right && y > r.top && y < r.bottom) targetZone = zone;
+            });
+
+            if (targetZone) {
+                if (activeDraggable.textContent === targetZone.dataset.ans) {
+                    const p = activeDraggable.cloneNode(true);
+                    p.className = "draggable-particle placed pop-in";
+                    p.style.position = "relative";
+                    p.style.left = "0"; p.style.top = "0";
+                    targetZone.appendChild(p);
+                    success = true;
+                    checkAllFilled();
+                } else {
+                    document.getElementById('message-box').textContent = "ちがうかも？";
+                    document.getElementById('message-box').className = "mt-2 text-center h-6 text-base font-bold text-red-500";
+                    document.getElementById('game-card').classList.add('shake');
+                    setTimeout(() => document.getElementById('game-card').classList.remove('shake'), 400);
+                }
+            }
+
+            if (!success && sourceElement) sourceElement.classList.remove('dragging-source');
+            if (activeDraggable) activeDraggable.remove();
+            activeDraggable = null;
+            document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('active'));
+            resetHintTimer();
+        }
+
+        function checkAllFilled() {
+            const zones = document.querySelectorAll('.drop-zone');
+            const filled = Array.from(zones).every(z => z.children.length > 0);
+            if (filled && !isProcessing) {
+                isProcessing = true;
+                clearTimeout(hintTimer);
+                document.getElementById('message-box').textContent = "せいかい！";
+                document.getElementById('message-box').className = "mt-2 text-center h-6 text-base font-bold text-green-500 animate-bounce";
+                runAnimation(gameQuestions[currentIdx].act);
+                setTimeout(() => {
+                    currentIdx++;
+                    if (currentIdx < totalQuestionsPerGame) loadQuestion();
+                    else {
+                        document.getElementById('game-screen').classList.add('hidden');
+                        document.getElementById('clear-screen').classList.remove('hidden');
+                    }
+                }, 1500);
+            }
+        }
+
+        function runAnimation(action) {
+            const char = document.getElementById('char-1');
+            const item = document.getElementById('item-1');
+            const isFlipped = char.classList.contains('flip-h');
+            char.classList.remove('pop-in');
+            item.classList.remove('pop-in');
+            
+            if (action === "eat") {
+                char.classList.add(isFlipped ? 'eat-anim-flipped' : 'eat-anim');
+                setTimeout(() => { if(isProcessing) item.textContent = "✨"; }, 600);
+            } else if (action === "dash") {
+                char.classList.add(isFlipped ? 'dash-anim-flipped' : 'dash-anim');
+            } else if (action === "go") {
+                char.classList.add(isFlipped ? 'go-anim-flipped' : 'go-anim');
+            } else if (action === "bounce") {
+                char.classList.add(isFlipped ? 'bounce-flipped' : 'bounce');
+            }
+        }
+
+        document.getElementById('start-btn').onclick = startGame;
+        document.getElementById('restart-btn').onclick = startGame;
+    </script>
+</body>
+</html>
+

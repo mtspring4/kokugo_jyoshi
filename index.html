@@ -342,7 +342,7 @@
                     if (choices.length < 4 && !choices.includes(p)) choices.push(p);
                 });
                 while(choices.length < 3) {
-                    const other = ["を", "は", "へ"].find(x => !choices.includes(x));
+                    const other = ["を", "は", "へ", "が", "に"].find(x => !choices.includes(x));
                     choices.push(other);
                 }
             }
